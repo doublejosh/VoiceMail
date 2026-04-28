@@ -169,6 +169,7 @@ footer{margin-top:auto;padding-top:40px;font-size:10px;color:var(--dim);letter-s
     <div class="play-bar"><div class="play-prog" id="playProg"></div></div>
   </div>
 
+  <button class="action-btn" id="tapPlayBtn" style="display:none" onclick="triggerPlay()">▶ Tap to Play</button>
   <button class="action-btn" id="scanAgainBtn" style="display:none" onclick="scanAgain()">Scan Again</button>
 </div>
 
@@ -469,46 +470,72 @@ function stopCamera() {
   document.getElementById('camWrap').classList.remove('visible');
 }
 
+let pendingAudio = null, pendingUrl = null;
+
 async function decodeAndPlay(bytes) {
   const stat = document.getElementById('scanStat');
-  stat.textContent='QR detected — decoding audio';
-  stat.className='scan-status found';
+  stat.textContent = 'QR detected — ready to play';
+  stat.className = 'scan-status found';
 
-  try {
-    const blob = new Blob([bytes],{type:'audio/webm;codecs=opus'});
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
+  // Clean up any previous pending audio
+  if (pendingUrl) { URL.revokeObjectURL(pendingUrl); pendingUrl = null; }
 
-    const panel = document.getElementById('playPanel');
-    const prog = document.getElementById('playProg');
-    document.getElementById('playInfo').textContent=`${bytes.length.toLocaleString()} bytes decoded — playing`;
-    panel.classList.add('visible');
+  const blob = new Blob([bytes], { type: 'audio/webm;codecs=opus' });
+  pendingUrl = URL.createObjectURL(blob);
+  pendingAudio = new Audio(pendingUrl);
 
-    audio.ontimeupdate = () => {
-      if (audio.duration) prog.style.width=(audio.currentTime/audio.duration*100)+'%';
-    };
-    audio.onended = () => {
-      prog.style.width='100%';
-      stat.textContent='Playback complete';
-      document.getElementById('scanAgainBtn').style.display='inline-block';
-      URL.revokeObjectURL(url);
-    };
-    audio.onerror = () => {
-      document.getElementById('intErr').textContent='Audio decode failed. QR may not contain valid audio.';
-      document.getElementById('intErr').classList.add('visible');
-      document.getElementById('scanAgainBtn').style.display='inline-block';
-    };
-    await audio.play();
-  } catch(e) {
-    document.getElementById('intErr').textContent='Playback error: '+e.message;
+  const prog = document.getElementById('playProg');
+  pendingAudio.ontimeupdate = () => {
+    if (pendingAudio.duration)
+      prog.style.width = (pendingAudio.currentTime / pendingAudio.duration * 100) + '%';
+  };
+  pendingAudio.onended = () => {
+    prog.style.width = '100%';
+    stat.textContent = 'Playback complete';
+    document.getElementById('tapPlayBtn').style.display = 'none';
+    document.getElementById('scanAgainBtn').style.display = 'inline-block';
+    URL.revokeObjectURL(pendingUrl); pendingUrl = null;
+  };
+  pendingAudio.onerror = () => {
+    document.getElementById('intErr').textContent = 'Audio decode failed. QR may not contain valid audio.';
     document.getElementById('intErr').classList.add('visible');
-    document.getElementById('scanAgainBtn').style.display='inline-block';
+    document.getElementById('tapPlayBtn').style.display = 'none';
+    document.getElementById('scanAgainBtn').style.display = 'inline-block';
+  };
+
+  document.getElementById('playInfo').textContent = `${bytes.length.toLocaleString()} bytes decoded`;
+  document.getElementById('playPanel').classList.add('visible');
+
+  // Try auto-play first (works on desktop/Android)
+  // If blocked (iOS), fall back to tap-to-play button
+  try {
+    await pendingAudio.play();
+    // Auto-play succeeded — no button needed
+  } catch(e) {
+    // iOS blocks auto-play; show tap button instead
+    document.getElementById('tapPlayBtn').style.display = 'inline-block';
+    stat.textContent = 'QR decoded — tap to play';
   }
 }
 
+function triggerPlay() {
+  // Called from a real user tap — iOS allows this
+  if (!pendingAudio) return;
+  document.getElementById('tapPlayBtn').style.display = 'none';
+  document.getElementById('scanStat').textContent = 'Playing';
+  pendingAudio.play().catch(e => {
+    document.getElementById('intErr').textContent = 'Playback error: ' + e.message;
+    document.getElementById('intErr').classList.add('visible');
+    document.getElementById('scanAgainBtn').style.display = 'inline-block';
+  });
+}
+
 function scanAgain() {
+  if (pendingAudio) { pendingAudio.pause(); pendingAudio = null; }
+  if (pendingUrl) { URL.revokeObjectURL(pendingUrl); pendingUrl = null; }
   document.getElementById('playPanel').classList.remove('visible');
   document.getElementById('playProg').style.width='0%';
+  document.getElementById('tapPlayBtn').style.display='none';
   document.getElementById('scanAgainBtn').style.display='none';
   document.getElementById('intErr').classList.remove('visible');
   stopCamera();
