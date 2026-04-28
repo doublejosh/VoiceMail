@@ -187,7 +187,7 @@ let mode = 'record';
 let audioCtx, stream, recorder, analyser;
 let chunks = [], isRec = false, recStart = 0;
 let cdInterval = null, autoStopTimer = null, animId = null, waveBars = [];
-const MAX_MS = 2500, MAX_BYTES = 2953;
+const MAX_MS = 5000, MAX_BYTES = 2953;
 
 // ── Mode ───────────────────────────────────────
 function setMode(m) {
@@ -268,9 +268,18 @@ async function initAudio() {
       .find(t => MediaRecorder.isTypeSupported(t));
     if (!mimeType) { showRecErr('Opus not supported. Use Chrome or Edge.'); return false; }
 
-    recorder = new MediaRecorder(dest.stream, { mimeType, audioBitsPerSecond:6000 });
+    recorder = new MediaRecorder(dest.stream, { mimeType, audioBitsPerSecond:8000 });
     chunks = [];
-    recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+    let bytesAccumulated = 0;
+    const BYTE_BUDGET = 2650; // ~300 bytes headroom for WebM container overhead
+    recorder.ondataavailable = e => {
+      if (e.data.size > 0) {
+        chunks.push(e.data);
+        bytesAccumulated += e.data.size;
+        // Stop as soon as we're approaching the QR byte limit
+        if (bytesAccumulated >= BYTE_BUDGET && isRec) stopRec();
+      }
+    };
     recorder.onstop = processRec;
     return true;
   } catch(e) {
@@ -301,12 +310,17 @@ async function startRec(e) {
   // Guaranteed auto-stop at MAX_MS
   autoStopTimer = setTimeout(() => stopRec(), MAX_MS);
 
-  // Visual countdown only — no stop logic here
+  // Visual countdown — ring reflects byte budget consumed, timer shows elapsed time
   const circ = 565;
+  const BYTE_BUDGET = 2650;
   cdInterval = setInterval(() => {
-    const el = Date.now()-recStart, rem = Math.max(0,MAX_MS-el);
-    document.getElementById('ringFill').style.strokeDashoffset = circ*(1-el/MAX_MS);
-    document.getElementById('cdTimer').textContent = (rem/1000).toFixed(1)+'s';
+    const el = Date.now()-recStart;
+    const totalBytes = chunks.reduce((s,c)=>s+c.size, 0);
+    const byteProgress = Math.min(totalBytes / BYTE_BUDGET, 1);
+    const timeProgress = Math.min(el / MAX_MS, 1);
+    const progress = Math.max(byteProgress, timeProgress);
+    document.getElementById('ringFill').style.strokeDashoffset = circ*(1-progress);
+    document.getElementById('cdTimer').textContent = (el/1000).toFixed(1)+'s';
   }, 50);
   drawWave();
 }
