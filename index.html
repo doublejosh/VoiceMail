@@ -148,6 +148,7 @@ header{flex-shrink:0;display:flex;align-items:center;justify-content:center;padd
       <div class="play-bar"><div class="play-prog" id="playProg"></div></div>
     </div>
     <button class="action-btn" id="tapPlayBtn" style="display:none" onclick="triggerPlay()">▶ Tap to Play</button>
+    <button class="action-btn" id="playAgainBtn" style="display:none" onclick="playAgain()">▶ Play Again</button>
     <button class="action-btn" id="scanAgainBtn" style="display:none" onclick="scanAgain()">Scan Another</button>
   </div>
 
@@ -473,8 +474,8 @@ async function decodeAndPlay(bytes) {
     prog.style.width = '100%';
     document.getElementById('playLabel').textContent = 'Playback complete';
     document.getElementById('tapPlayBtn').style.display = 'none';
+    document.getElementById('playAgainBtn').style.display = 'inline-block';
     document.getElementById('scanAgainBtn').style.display = 'inline-block';
-    URL.revokeObjectURL(pendingUrl); pendingUrl = null;
   };
   pendingAudio.onerror = () => {
     document.getElementById('intErr').textContent = 'Audio decode failed. QR may not contain valid audio.';
@@ -491,6 +492,19 @@ async function decodeAndPlay(bytes) {
     document.getElementById('tapPlayBtn').style.display = 'inline-block';
     document.getElementById('playLabel').textContent = 'Tap to play your message';
   }
+}
+
+function playAgain() {
+  if (!pendingAudio) return;
+  document.getElementById('playAgainBtn').style.display = 'none';
+  document.getElementById('scanAgainBtn').style.display = 'none';
+  document.getElementById('playLabel').textContent = 'Playing your message';
+  document.getElementById('playProg').style.width = '0%';
+  pendingAudio.currentTime = 0;
+  pendingAudio.play().catch(e => {
+    document.getElementById('playAgainBtn').style.display = 'inline-block';
+    document.getElementById('scanAgainBtn').style.display = 'inline-block';
+  });
 }
 
 function triggerPlay() {
@@ -510,6 +524,7 @@ function scanAgain() {
   document.getElementById('playProg').style.width = '0%';
   document.getElementById('playLabel').textContent = 'Playing your message';
   document.getElementById('tapPlayBtn').style.display = 'none';
+  document.getElementById('playAgainBtn').style.display = 'none';
   document.getElementById('scanAgainBtn').style.display = 'none';
   document.getElementById('intErr').classList.remove('visible');
   stopCamera();
