@@ -9,7 +9,9 @@
 :root{--bg:#070707;--surface:#0f0f0f;--border:#1c1c1c;--text:#ddd5c4;--dim:#555;--accent:#e8d5a8;--red:#b83232;--red-glow:rgba(184,50,50,0.3);--mono:'Space Mono',monospace;--serif:'Cormorant Garamond',serif}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--mono);height:100dvh;overflow:hidden;display:flex;flex-direction:column;user-select:none;-webkit-user-select:none;touch-action:manipulation}
-header{flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:16px 24px;border-bottom:1px solid var(--border)}
+header{flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:16px 24px;border-bottom:1px solid var(--border);position:relative}
+.mode-link{position:absolute;right:20px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);text-decoration:none;border:1px solid var(--border);padding:6px 12px;transition:color .2s,border-color .2s}
+.mode-link:hover{color:var(--accent);border-color:var(--accent)}
 .logo{font-family:var(--serif);font-size:20px;font-weight:300;letter-spacing:.2em;color:var(--accent);text-transform:uppercase}
 .screen{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px;overflow:hidden}
 .screen.active{display:flex}
@@ -81,6 +83,7 @@ header{flex-shrink:0;display:flex;align-items:center;justify-content:center;padd
 
 <header>
   <span class="logo">Voice Mail</span>
+  <a class="mode-link" id="modeLink" href="?mode=interpret">Interpret</a>
 </header>
 
 <!-- ── RECORD SCREEN ── -->
@@ -173,11 +176,16 @@ const MAX_MS = 5000, MAX_BYTES = 2953;
 function initMode() {
   const params = new URLSearchParams(location.search);
   const m = (params.get('mode') || 'record').toLowerCase();
+  const link = document.getElementById('modeLink');
   if (m === 'interpret') {
     document.getElementById('intScreen').classList.add('active');
+    link.href = '?mode=record';
+    link.textContent = 'Record';
     startCamera();
   } else {
     document.getElementById('recScreen').classList.add('active');
+    link.href = '?mode=interpret';
+    link.textContent = 'Interpret';
     buildWave();
     checkCompat();
   }
